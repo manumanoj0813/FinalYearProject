@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Recording Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .recording {
+            background-color: #ff4444;
+            color: white;
+        }
+        .not-recording {
+            background-color: #44ff44;
+            color: black;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Audio Recording Test</h1>
+        <p>This page tests the audio recording functionality directly with the backend.</p>
+        
+        <div>
+            <button id="startBtn" class="not-recording">Start Recording</button>
+            <button id="stopBtn" class="not-recording" disabled>Stop Recording</button>
+        </div>
+        
+        <div id="status"></div>
+        
+        <div id="result" style="display: none;">
+            <h3>Analysis Result:</h3>
+            <pre id="resultText"></pre>
+        </div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const status = document.getElementById('status');
+        const result = document.getElementById('result');
+        const resultText = document.getElementById('resultText');
+
+        function updateStatus(message, isError = false) {
+            status.textContent = message;
+            status.className = isError ? 'error' : 'success';
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    await sendAudioForAnalysis(audioBlob);
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                startBtn.textContent = 'Recording...';
+                startBtn.className = 'recording';
+                updateStatus('Recording started...');
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                updateStatus('Error starting recording: ' + error.message, true);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                isRecording = false;
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                startBtn.textContent = 'Start Recording';
+                startBtn.className = 'not-recording';
+                updateStatus('Processing audio...');
+            }
+        }
+
+        async function sendAudioForAnalysis(audioBlob) {
+            try {
+                const formData = new FormData();
+                formData.append('file', audioBlob, 'recording.webm');
+                formData.append('session_type', 'test');
+                formData.append('topic', 'test');
+
+                updateStatus('Sending audio for analysis...');
+
+                const response = await fetch('http://localhost:8000/test-analyze-audio', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                const result = await response.json();
+                updateStatus('Analysis completed successfully!');
+                
+                resultText.textContent = JSON.stringify(result, null, 2);
+                result.style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error analyzing audio:', error);
+                updateStatus('Error analyzing audio: ' + error.message, true);
+            }
+        }
+
+        startBtn.addEventListener('click', startRecording);
+        stopBtn.addEventListener('click', stopRecording);
+    </script>
+</body>
+</html> 
