@@ -91,7 +91,7 @@ const MainContent: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <Box minH="100vh" bg={bgColor} py={8}>
+      <Box minH="100vh" py={8}>
         <VStack spacing={8} maxW="1200px" mx="auto" px={4}>
           <Heading size="2xl" color="purple.600">
             Vocal IQ
@@ -106,7 +106,7 @@ const MainContent: React.FC = () => {
   }
 
   return (
-    <Box minH="100vh" bg={bgColor} py={8}>
+    <Box minH="100vh" py={8}>
       <VStack spacing={8} maxW="1200px" mx="auto" px={4}>
         <HStack w="full" justify="space-between">
           <Heading size="2xl" color="purple.600">
