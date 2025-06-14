@@ -141,9 +141,7 @@ export const theme = extendTheme({
         scrollBehavior: 'smooth',
       },
       body: {
-        bg: props.colorMode === 'dark' ? 'gray.900' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-        backgroundAttachment: 'fixed',
-        backgroundSize: 'cover',
+        bg: props.colorMode === 'dark' ? 'gray.900' : '#f8fafc',
         color: props.colorMode === 'dark' ? 'white' : 'gray.800',
         fontFamily: 'body',
         lineHeight: 'base',
