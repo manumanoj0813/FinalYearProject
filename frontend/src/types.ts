@@ -59,11 +59,13 @@ export interface EnhancedFeatures {
 }
 
 export interface VoiceAnalysis {
-  id: string;
-  user_id: string;
-  session_id: string;
-  created_at: string;
+  id?: string;
+  user_id?: string;
+  session_id?: string;
+  created_at?: string;
   audio_metrics: {
+    duration: number;
+    confidence_score: number;
     emotion: {
       dominant_emotion: string;
       emotion_confidence: number;
@@ -72,21 +74,37 @@ export interface VoiceAnalysis {
         sad: number;
         angry: number;
         neutral: number;
-        confident: number;
-        uncertain: number;
+        excited: number;
+        calm: number;
       };
+      emotional_range: string;
+      emotional_stability: number;
+      pitch_stability?: number;
+      energy_stability?: number;
+      avg_pitch?: number;
+      avg_energy?: number;
     };
     clarity: {
       clarity_score: number;
       pronunciation_score: number;
       articulation_rate: number;
       speech_errors: string[];
+      enunciation_quality: number;
+      voice_projection: number;
+      overall_clarity?: number;
+      mfcc_variation?: number;
+      spectral_contrast?: number;
     };
     rhythm: {
       speech_rate: number;
       pause_ratio: number;
       average_pause_duration: number;
       total_speaking_time: number;
+      rhythm_consistency: number;
+      stress_pattern: string;
+      tempo?: number;
+      speaking_tempo?: number;
+      energy_variation?: number;
     };
     pitch: {
       average_pitch: number;
@@ -95,11 +113,27 @@ export interface VoiceAnalysis {
         min: number;
         max: number;
       };
+      pitch_stability: number;
+      pitch_contour: number;
+      range_semitones?: number;
+    };
+    fluency: {
+      fluency_score: number;
+      filler_words: string[];
+      repetitions: number;
+      hesitations: number;
+      smoothness: number;
+      pitch_jitter?: number;
+      energy_smoothness?: number;
+      pitch_smoothness?: number;
+      mfcc_variation?: number;
+      fluency_issues?: string[];
     };
   };
   transcription: {
     full_text: string;
     word_count: number;
+    transcription_confidence: number;
   };
   recommendations: {
     key_points: string[];
@@ -112,6 +146,8 @@ export interface VoiceAnalysis {
     topic: string;
     duration: number;
     file_path: string;
+    analysis_version?: string;
+    model_confidence?: number;
   };
   // Enhanced features
   enhanced_features?: EnhancedFeatures;

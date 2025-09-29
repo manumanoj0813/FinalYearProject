@@ -17,7 +17,9 @@ import {
   TabPanel,
   HStack,
   Divider,
+  Button,
   useColorModeValue,
+  useToast,
 } from '@chakra-ui/react'
 import {
   FaCheckCircle,
@@ -27,7 +29,9 @@ import {
   FaExclamationTriangle,
   FaStar,
   FaLightbulb,
+  FaDownload,
 } from 'react-icons/fa'
+import api from '../config/api'
 import {
   BarChart,
   Bar,
@@ -42,7 +46,6 @@ import {
   PolarRadiusAxis,
   Radar,
 } from 'recharts'
-import { VoiceAnalysis, AnalysisDisplayProps } from '../types'
 
 const getColorScheme = (score: number): string => {
   if (score >= 80) return 'green'
@@ -55,24 +58,13 @@ const normalizeValue = (value: number): number => {
   return Math.min(100, Math.max(0, value * 100))
 }
 
-const getEmotionColor = (emotion: string): string => {
-  const emotionColors: { [key: string]: string } = {
-    happy: 'yellow.400',
-    sad: 'blue.400',
-    angry: 'red.400',
-    neutral: 'gray.400',
-    confident: 'green.400',
-    uncertain: 'purple.400',
-  }
-  return emotionColors[emotion.toLowerCase()] || 'gray.400'
-}
-
 export const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ analysis }) => {
   const bgColor = useColorModeValue('white', 'gray.800');
   const cardBg = useColorModeValue('gray.50', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const textColor = useColorModeValue('gray.700', 'gray.200');
   const secondaryTextColor = useColorModeValue('gray.600', 'gray.400');
+  const toast = useToast();
 
   const metrics = React.useMemo(() => {
     if (!analysis?.audio_metrics?.clarity?.clarity_score || 
@@ -135,6 +127,52 @@ export const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ analysis }) =>
   const practiceSuggestions = analysis.recommendations?.practice_suggestions || []
   const strengths = analysis.recommendations?.strengths || []
 
+  const handleDownloadPDF = async () => {
+    try {
+      const response = await api.post('/export-analysis-pdf', analysis, {
+        responseType: 'blob',
+      });
+      
+      // Create blob link to download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Get filename from response headers or create default
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'voice_analysis_report.pdf';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: 'PDF Downloaded',
+        description: 'Your voice analysis report has been downloaded successfully!',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast({
+        title: 'Download Failed',
+        description: 'Failed to download PDF. Please try again.',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
   return (
     <Box w="full" bg={bgColor} p={6} borderRadius="lg" boxShadow="md" border="1px solid" borderColor={borderColor}>
       <VStack spacing={6} align="stretch">
@@ -142,23 +180,35 @@ export const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ analysis }) =>
           <Text fontSize="2xl" fontWeight="bold" color={textColor}>
             Voice Analysis Results
           </Text>
-          <HStack spacing={2}>
-            <Badge
-              colorScheme={getColorScheme(emotionConfidence * 100)}
-              fontSize="md"
-              px={3}
-              py={1}
-              borderRadius="full"
-            >
-              {dominantEmotion}
-            </Badge>
-            <Badge
+          <HStack spacing={3}>
+            <Button
+              leftIcon={<FaDownload />}
               colorScheme="purple"
               variant="outline"
-              fontSize="sm"
+              size="sm"
+              onClick={handleDownloadPDF}
+              _hover={{ bg: 'purple.50' }}
             >
-              {sessionType}
-            </Badge>
+              Download PDF
+            </Button>
+            <HStack spacing={2}>
+              <Badge
+                colorScheme={getColorScheme(emotionConfidence * 100)}
+                fontSize="md"
+                px={3}
+                py={1}
+                borderRadius="full"
+              >
+                {dominantEmotion}
+              </Badge>
+              <Badge
+                colorScheme="purple"
+                variant="outline"
+                fontSize="sm"
+              >
+                {sessionType}
+              </Badge>
+            </HStack>
           </HStack>
         </Box>
 

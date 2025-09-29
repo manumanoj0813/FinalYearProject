@@ -22,7 +22,7 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const { colorMode, toggleColorMode, setColorMode: setChakraColorMode } = useColorMode();
+  const { colorMode, setColorMode: setChakraColorMode } = useColorMode();
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {

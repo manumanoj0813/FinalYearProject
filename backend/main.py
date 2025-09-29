@@ -18,6 +18,7 @@ import io
 from voice_analyzer import VoiceAnalyzer
 from enhanced_analyzer import EnhancedAnalyzer
 from export_utils import DataExporter, ChartGenerator
+from pdf_generator import VoiceAnalysisPDFGenerator
 from database import (
     init_db,
     create_user,
@@ -184,6 +185,7 @@ voice_analyzer = VoiceAnalyzer()
 enhanced_analyzer = EnhancedAnalyzer()
 data_exporter = DataExporter()
 chart_generator = ChartGenerator()
+pdf_generator = VoiceAnalysisPDFGenerator()
 
 @app.post("/test-analyze-audio")
 async def test_analyze_audio_endpoint(
@@ -733,6 +735,87 @@ async def favicon():
     from fastapi.responses import Response
     return Response(status_code=204)
 
+@app.post("/export-analysis-pdf")
+async def export_analysis_pdf_endpoint(
+    analysis_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Export voice analysis results as PDF"""
+    try:
+        logger.info(f"Generating PDF for user: {current_user['username']}")
+        
+        # Generate PDF
+        pdf_content = pdf_generator.generate_voice_analysis_pdf(analysis_data, current_user)
+        
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"voice_analysis_{current_user['username']}_{timestamp}.pdf"
+        
+        return StreamingResponse(
+            io.BytesIO(pdf_content),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except Exception as e:
+        logger.error(f"PDF export error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}")
+
+@app.get("/export-analysis-pdf/{recording_id}")
+async def export_recording_pdf_endpoint(
+    recording_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Export specific recording analysis as PDF"""
+    try:
+        logger.info(f"Generating PDF for recording {recording_id} by user: {current_user['username']}")
+        
+        # Get recording data
+        user_id = ObjectId(current_user["_id"])
+        recordings = await get_user_recordings(user_id)
+        
+        # Find the specific recording
+        target_recording = None
+        for recording in recordings:
+            if str(recording["_id"]) == recording_id:
+                target_recording = recording
+                break
+        
+        if not target_recording:
+            raise HTTPException(status_code=404, detail="Recording not found")
+        
+        # Prepare analysis data
+        analysis_data = {
+            "audio_metrics": target_recording.get("analysis_result", {}).get("audio_metrics", {}),
+            "transcription": target_recording.get("analysis_result", {}).get("transcription", {}),
+            "recommendations": target_recording.get("analysis_result", {}).get("recommendations", {}),
+            "metadata": {
+                "session_type": target_recording.get("session_type", "practice"),
+                "topic": target_recording.get("topic", "general"),
+                "duration": target_recording.get("analysis_result", {}).get("audio_metrics", {}).get("duration", 0),
+                "created_at": target_recording.get("created_at", datetime.now())
+            }
+        }
+        
+        # Generate PDF
+        pdf_content = pdf_generator.generate_voice_analysis_pdf(analysis_data, current_user)
+        
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"voice_analysis_{current_user['username']}_{recording_id}_{timestamp}.pdf"
+        
+        return StreamingResponse(
+            io.BytesIO(pdf_content),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Recording PDF export error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}")
+
 @app.get("/debug-language-detection")
 async def debug_language_detection_endpoint(current_user: dict = Depends(get_current_user)):
     """Debug endpoint for language detection"""
@@ -745,7 +828,20 @@ async def debug_language_detection_endpoint(current_user: dict = Depends(get_cur
             "username": current_user["username"],
             "recordings_count": len(recordings) if recordings else 0,
             "enhanced_analyzer_initialized": hasattr(enhanced_analyzer, 'language_detector'),
-            "supported_languages": enhanced_analyzer.language_detector.supported_languages if hasattr(enhanced_analyzer, 'language_detector') else {}
+            "transcriber_available": enhanced_analyzer.language_detector.transcriber is not None,
+            "supported_languages": enhanced_analyzer.language_detector.supported_languages if hasattr(enhanced_analyzer, 'language_detector') else {},
+            "detection_method": "Dual (Feature-based + Transcription)",
+            "feature_thresholds": {
+                "english_centroid_range": "1500-3500 Hz",
+                "english_rolloff_range": "2500-6000 Hz", 
+                "english_zcr_range": "0.03-0.20",
+                "kannada_centroid_range": "1200-1800 Hz",
+                "kannada_rolloff_range": "2000-3200 Hz", 
+                "kannada_zcr_range": "0.03-0.10",
+                "telugu_centroid_range": "1600-2100 Hz",
+                "telugu_rolloff_range": "3200-4200 Hz",
+                "telugu_zcr_range": "0.06-0.13"
+            }
         }
         
         if recordings:
@@ -764,6 +860,99 @@ async def debug_language_detection_endpoint(current_user: dict = Depends(get_cur
     except Exception as e:
         logger.error(f"Debug language detection error: {str(e)}")
         return {"error": str(e)}
+
+@app.get("/debug-ai-detection")
+async def debug_ai_detection_endpoint(current_user: dict = Depends(get_current_user)):
+    """Debug endpoint for AI voice detection"""
+    try:
+        user_id = ObjectId(current_user["_id"])
+        recordings = await get_user_recordings(user_id)
+        
+        debug_info = {
+            "user_id": str(user_id),
+            "username": current_user["username"],
+            "recordings_count": len(recordings) if recordings else 0,
+            "voice_cloning_detector_initialized": hasattr(enhanced_analyzer, 'voice_cloning_detector'),
+            "model_loaded": enhanced_analyzer.voice_cloning_detector.model is not None,
+            "scaler_loaded": enhanced_analyzer.voice_cloning_detector.scaler is not None,
+            "detection_method": "Enhanced Spectral Analysis",
+            "ai_detection_thresholds": {
+                "ai_threshold": "0.5 (was 0.7)",
+                "high_risk": "> 0.75",
+                "medium_risk": "0.55-0.75",
+                "low_risk": "< 0.55"
+            },
+            "feature_analysis": {
+                "spectral_consistency": "AI voices have very low variation",
+                "mfcc_variation": "AI voices have low MFCC variation",
+                "zcr_consistency": "AI voices have unnatural ZCR patterns",
+                "rms_consistency": "AI voices have very consistent energy",
+                "perfect_patterns": "Multiple indicators together = likely AI"
+            }
+        }
+        
+        if recordings:
+            # Get the most recent recording
+            latest_recording = max(recordings, key=lambda x: x.get('created_at', datetime.now()))
+            debug_info["latest_recording"] = {
+                "id": str(latest_recording.get('_id', '')),
+                "created_at": latest_recording.get('created_at', ''),
+                "is_ai_generated": latest_recording.get('is_ai_generated', False),
+                "ai_confidence": latest_recording.get('ai_confidence', 0),
+                "ai_risk_level": latest_recording.get('ai_risk_level', 'low')
+            }
+        
+        return debug_info
+        
+    except Exception as e:
+        logger.error(f"Debug AI detection error: {str(e)}")
+        return {"error": str(e)}
+
+@app.post("/test-language-detection")
+async def test_language_detection_endpoint(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Test endpoint for language detection with detailed debugging"""
+    temp_file_path = None
+    try:
+        logger.info(f"Testing language detection for file: {file.filename}")
+        
+        # Save uploaded file
+        temp_file_path = tempfile.mktemp(suffix='.webm')
+        with open(temp_file_path, 'wb') as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Test language detection
+        language_result = enhanced_analyzer.language_detector.detect_language_from_audio(temp_file_path)
+        
+        logger.info(f"Language detection result: {language_result}")
+        
+        return {
+            "message": "Language detection test completed",
+            "detected_language": language_result["detected_language"],
+            "language_name": language_result["language_name"],
+            "confidence": language_result["confidence"],
+            "transcription": language_result.get("transcription", ""),
+            "detection_features": language_result.get("detection_features", {}),
+            "debug_info": {
+                "file_size": len(content),
+                "file_name": file.filename,
+                "detection_method": "enhanced_analyzer"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Language detection test error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Language detection test failed: {str(e)}")
+    finally:
+        # Clean up temporary file
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete temp file {temp_file_path}: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

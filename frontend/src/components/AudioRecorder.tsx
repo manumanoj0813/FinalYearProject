@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { VStack, Text, useToast, Box, Progress, HStack, Button, Badge, Icon, useColorModeValue } from '@chakra-ui/react'
-import { FaMicrophone, FaStop, FaExclamationTriangle } from 'react-icons/fa'
+import { VStack, Text, useToast, Box, Progress, HStack, Button, Icon, useColorModeValue } from '@chakra-ui/react'
+import { FaMicrophone, FaStop, FaExclamationTriangle, FaDownload } from 'react-icons/fa'
 import api from '../config/api'
 import { AudioRecorderProps, VoiceAnalysis } from '../types'
-import { useAuth } from '../contexts/AuthContext'
 import { handleApiError } from '../utils/errorHandler'
 
 export const AudioRecorder: React.FC<AudioRecorderProps> = ({ 
@@ -22,7 +21,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const analyserRef = useRef<AnalyserNode | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const toast = useToast()
-  const { user } = useAuth()
+  const [lastAudioBlob, setLastAudioBlob] = useState<Blob | null>(null)
+  const [lastAudioUrl, setLastAudioUrl] = useState<string | null>(null)
 
   const bgColor = useColorModeValue('white', 'gray.800')
   const borderColor = useColorModeValue('gray.200', 'gray.600')
@@ -93,6 +93,11 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         try {
           setIsProcessing(true)
           const audioBlob = new Blob(chunksRef.current, { type: mimeType })
+          setLastAudioBlob(audioBlob)
+          if (lastAudioUrl) {
+            URL.revokeObjectURL(lastAudioUrl)
+          }
+          setLastAudioUrl(URL.createObjectURL(audioBlob))
           await sendAudioForAnalysis(audioBlob)
         } catch (error) {
           console.error('Error processing audio:', error)
@@ -244,6 +249,23 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
               hasStripe
               isAnimated
             />
+          </VStack>
+        )}
+
+        {lastAudioUrl && !isRecording && !isProcessing && (
+          <VStack spacing={2} w="full" pt={2}>
+            <audio controls src={lastAudioUrl} style={{ width: '100%' }} />
+            <Button
+              as="a"
+              href={lastAudioUrl}
+              download="recording.webm"
+              leftIcon={<FaDownload />}
+              colorScheme="blue"
+              variant="outline"
+              w="full"
+            >
+              Download Recording
+            </Button>
           </VStack>
         )}
       </VStack>

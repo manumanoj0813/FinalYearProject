@@ -17,7 +17,6 @@ import {
   AlertTitle,
   AlertDescription,
   useColorModeValue,
-  Image,
 } from '@chakra-ui/react';
 import { FaChartLine, FaLanguage, FaDownload } from 'react-icons/fa';
 
